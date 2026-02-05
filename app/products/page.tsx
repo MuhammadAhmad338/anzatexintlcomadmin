@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { useState, useEffect } from "react";
+import { useAppDispatch, useAppSelector } from "../hooks/redux";
+import { createProduct, clearError, clearSuccess } from "../store/slices/productsSlice";
 
 export default function Products() {
+  const dispatch = useAppDispatch();
+  const { loading, error, success } = useAppSelector((state) => state.products as { loading: boolean; error: string | null; success: string | null });
+
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -13,19 +16,21 @@ export default function Products() {
     category: "",
     stock: "",
     brand: "",
-    isActive: true,
+    isActive: true
   });
 
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value, type } = e.target as HTMLInputElement;
     if (type === "checkbox") {
-      setForm((prev) => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
+      setForm((prev) => ({
+        ...prev,
+        [name]: (e.target as HTMLInputElement).checked,
+      }));
       return;
     }
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -38,7 +43,6 @@ export default function Products() {
     const fileArray = Array.from(files);
     setImages(fileArray);
 
-    // Create preview URLs
     const previews = fileArray.map((file) => URL.createObjectURL(file));
     setImagePreviews(previews);
   };
@@ -46,73 +50,63 @@ export default function Products() {
   const removeImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
     const newPreviews = imagePreviews.filter((_, i) => i !== index);
-    
-    // Revoke the URL to free memory
     URL.revokeObjectURL(imagePreviews[index]);
-    
     setImages(newImages);
     setImagePreviews(newPreviews);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
 
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    const formData = new FormData();
+    formData.append("name", form.name);
+    formData.append("description", form.description);
+    formData.append("price", form.price);
+    if (form.discountPrice) formData.append("discountPrice", form.discountPrice);
+    if (form.category) formData.append("category", form.category);
+    formData.append("stock", form.stock || "0");
+    formData.append("brand", form.brand);
+    formData.append("isActive", String(form.isActive));
 
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append("name", form.name);
-      formData.append("description", form.description);
-      formData.append("price", form.price);
-      if (form.discountPrice) formData.append("discountPrice", form.discountPrice);
-      if (form.category) formData.append("category", form.category);
-      formData.append("stock", form.stock || "0");
-      formData.append("brand", form.brand);
-      formData.append("isActive", String(form.isActive));
+    images.forEach((image) => {
+      formData.append("images", image);
+    });
 
-      // Append images
-      images.forEach((image) => {
-        formData.append("images", image);
-      });
-
-      const res = await fetch(`${API_URL}/api/products`, {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          // Don't set Content-Type - browser will set it with boundary for FormData
-        },
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data?.message || "Failed to create product");
-      } else {
-        setSuccess("Product created successfully");
-        setForm({
-          name: "",
-          description: "",
-          price: "",
-          discountPrice: "",
-          category: "",
-          stock: "",
-          brand: "",
-          isActive: true,
-        });
-        setImages([]);
-        setImagePreviews([]);
-      }
-    } catch (err: any) {
-      setError(err.message || "Network error");
-    } finally {
-      setLoading(false);
-    }
+    dispatch(createProduct(formData));
   };
+
+  useEffect(() => {
+    if (success) {
+      setForm({
+        name: "",
+        description: "",
+        price: "",
+        discountPrice: "",
+        category: "",
+        stock: "",
+        brand: "",
+        isActive: true,
+      });
+      setImages([]);
+      setImagePreviews([]);
+
+      const t = setTimeout(() => {
+        dispatch(clearSuccess());
+      }, 3000);
+
+      return () => clearTimeout(t);
+    }
+  }, [success, dispatch]);
+
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => {
+        dispatch(clearError());
+      }, 5000);
+
+      return () => clearTimeout(t);
+    }
+  }, [error, dispatch]);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-10">
@@ -206,7 +200,6 @@ export default function Products() {
             Select one or more images from your computer.
           </p>
 
-          {/* Image Previews */}
           {imagePreviews.length > 0 && (
             <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
               {imagePreviews.map((preview, index) => (
