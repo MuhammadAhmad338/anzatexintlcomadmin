@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
 import { useDispatch } from "react-redux";
 import { useRouter } from "next/navigation";
-import { logout } from "../store/slices/authSlices";
 import type { AppDispatch } from "../store";
+import { logout } from "../store/slices/authSlices";
 
 export default function Header() {
   const dispatch = useDispatch<AppDispatch>();

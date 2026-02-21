@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 interface Product {
+  _id?: string;
   id?: string;
   name: string;
   description: string;
@@ -24,29 +25,41 @@ const initialState: ProductsState = {
   products: [],
   loading: false,
   error: null,
-  success: null,
+  success: null
 };
 
-// Async thunk for creating a product
+// Async thunk for creating a product with images
 export const createProduct = createAsyncThunk(
   'products/createProduct',
   async (productData: FormData, { rejectWithValue }) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const API_URL = "http://localhost:3001";
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-
+      
+      console.log("Sending FormData with images");
+      console.log("Token:", token);
+      
+      // Send FormData as-is (includes both text fields and images)
       const response = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          // Don't set Content-Type - browser will set it with boundary for FormData
         },
         body: productData,
       });
 
       const data = await response.json();
+      console.log("API Response:", data);
+      console.log("Response status:", response.status);
 
       if (!response.ok) {
-        return rejectWithValue(data?.message || 'Failed to create product');
+        console.error("API Error Details:", {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+        return rejectWithValue(data?.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       return data;
@@ -57,8 +70,8 @@ export const createProduct = createAsyncThunk(
 );
 
 // Async thunk for fetching products
-export const fetchProducts = createAsyncThunk(
-  'products/fetchProducts',
+export const getProducts = createAsyncThunk(
+  'products/getProducts',
   async (_, { rejectWithValue }) => {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -71,6 +84,7 @@ export const fetchProducts = createAsyncThunk(
       });
 
       const data = await response.json();
+      console.log('Fetched products:', data);
 
       if (!response.ok) {
         return rejectWithValue(data?.message || 'Failed to fetch products');
@@ -109,22 +123,27 @@ const productsSlice = createSlice({
       .addCase(createProduct.fulfilled, (state, action) => {
         state.loading = false;
         state.success = 'Product created successfully';
-        state.products.push(action.payload.product);
+        // Handle different response structures
+        const product = action.payload.data?.product || action.payload.product || action.payload.data;
+        if (product && Array.isArray(state.products)) {
+          state.products.push(product);
+        }
       })
       .addCase(createProduct.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       // Fetch products
-      .addCase(fetchProducts.pending, (state) => {
+      .addCase(getProducts.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchProducts.fulfilled, (state, action) => {
+      .addCase(getProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.products = action.payload.products || action.payload;
+        // API returns { success: true, data: [products] }
+        state.products = Array.isArray(action.payload.data) ? action.payload.data : Array.isArray(action.payload.products) ? action.payload.products : Array.isArray(action.payload) ? action.payload : [];
       })
-      .addCase(fetchProducts.rejected, (state, action) => {
+      .addCase(getProducts.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
