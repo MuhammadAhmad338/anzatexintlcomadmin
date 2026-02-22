@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
@@ -34,10 +33,10 @@ export default function AdminLoginPage() {
   return (
     // "items-center justify-center" keeps it perfectly centered in the viewport
     <main className="min-h-screen flex items-center justify-center bg-[#F9FAFB] px-4 font-sans">
-      
+
       {/* Reduced max-width to 380px for a "smaller" look */}
       <div className="w-full max-w-[380px] bg-white rounded-3xl shadow-xl p-6 md:p-8 flex flex-col border border-gray-100">
-        
+
         {/* Header Section - More compact spacing */}
         <div className="flex flex-col items-center mb-6">
           <div className="bg-black p-2.5 rounded-2xl mb-3">

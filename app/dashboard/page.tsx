@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useEffect } from "react";
-import { useAppDispatch, useAppSelector } from "../hooks/redux";
-import { getProducts } from "../store/slices/productsSlice";
 import { getOrders } from "../store/slices/ordersSlice";
+import { getProducts } from "../store/slices/productsSlice";
+import { useAppDispatch, useAppSelector } from "../hooks/redux";
 
 export default function DashboardHome() {
   const dispatch = useAppDispatch();

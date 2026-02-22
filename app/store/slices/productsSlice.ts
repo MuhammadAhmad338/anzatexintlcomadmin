@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { log } from 'console';
 
 interface Product {
   _id?: string;
@@ -35,10 +36,10 @@ export const createProduct = createAsyncThunk(
     try {
       const API_URL = "http://localhost:3001";
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-      
+
       console.log("Sending FormData with images");
       console.log("Token:", token);
-      
+
       // Send FormData as-is (includes both text fields and images)
       const response = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
@@ -52,6 +53,76 @@ export const createProduct = createAsyncThunk(
       const data = await response.json();
       console.log("API Response:", data);
       console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        console.error("API Error Details:", {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+        return rejectWithValue(data?.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Network error');
+    }
+  }
+);
+
+export const editProduct = createAsyncThunk(
+  'products/editProduct',
+  async ({ productId, productData }: { productId: string, productData: FormData }, { rejectWithValue }) => {
+    try {
+      const API_URL = "http://localhost:3001";
+      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+
+      // Send FormData as-is (includes both text fields and images)
+      const response = await fetch(`${API_URL}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          // Don't set Content-Type - browser will set it with boundary for FormData
+        },
+        body: productData,
+      });
+
+      const data = await response.json();
+      console.log("API Response:", data);
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        console.error("API Error Details:", {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+        return rejectWithValue(data?.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Network error');
+    }
+  }
+);
+
+export const deleteProduct = createAsyncThunk(
+  'products/deleteProduct',
+  async (productId: string, { rejectWithValue }) => {
+    try {
+      const API_URL = "http://localhost:3001";
+      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+
+      // Send FormData as-is (includes both text fields and images)
+      const response = await fetch(`${API_URL}/api/products/${productId}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await response.json();
 
       if (!response.ok) {
         console.error("API Error Details:", {
