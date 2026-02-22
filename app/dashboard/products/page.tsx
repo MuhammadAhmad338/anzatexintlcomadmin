@@ -1,449 +1,153 @@
 "use client";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useAppDispatch, useAppSelector } from "../../hooks/redux";
-import { createProduct, getProducts, clearSuccess } from "../../store/slices/productsSlice";
 
-type ProductImage = string | { url?: string };
-type Product = {
-  _id: string;
+import { useEffect } from "react";
+import { useAppDispatch, useAppSelector } from "../../hooks/redux";
+import { getProducts, deleteProduct } from "../../store/slices/productsSlice";
+import { useRouter } from "next/navigation";
+import { Plus, Trash2, Eye, Package, Tag, List } from "lucide-react";
+
+interface Product {
+  _id?: string;
+  id?: string;
   name: string;
-  brand?: string;
+  description: string;
   price: number;
   discountPrice?: number;
-  stock?: number;
-  images?: ProductImage[];
-};
-
-type ProductsState = {
-  loading: boolean;
-  listLoading?: boolean;
-  error: string | null;
-  success: string | null;
-  products?: Product[];
-};
+  category?: any;
+  images: string[];
+  stock: number;
+  brand: string;
+  isActive: boolean;
+  createdAt?: string;
+}
 
 export default function Products() {
   const dispatch = useAppDispatch();
-
-  // Get products from Redux state
-  const { loading, error, success, products } = useAppSelector((state) => state.products as {
-    loading: boolean;
-    error: string | null;
-    success: string | null;
-    products: Product[];
-  });
-
-  const [open, setOpen] = useState(false);
-
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    price: "",
-    discountPrice: "",
-    category: "",
-    stock: "",
-    brand: "",
-    isActive: true,
-  });
-
-  const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-
-  const resetForm = () => {
-    imagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    setForm({
-      name: "",
-      description: "",
-      price: "",
-      discountPrice: "",
-      category: "",
-      stock: "",
-      brand: "",
-      isActive: true,
-    });
-    setImages([]);
-    setImagePreviews([]);
-  };
-
-  const closeDialog = () => {
-    setOpen(false);
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target as HTMLInputElement;
-
-    if (type === "checkbox") {
-      setForm((prev) => ({
-        ...prev,
-        [name]: (e.target as HTMLInputElement).checked,
-      }));
-      return;
-    }
-
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    const fileArray = Array.from(files);
-    const newFiles = fileArray.filter(
-      (newFile) =>
-        !images.some(
-          (existing) =>
-            existing.name === newFile.name && existing.size === newFile.size
-        )
-    );
-
-    setImages((prev) => [...prev, ...newFiles]);
-
-    const newPreviews = newFiles.map((file) => URL.createObjectURL(file));
-    setImagePreviews((prev) => [...prev, ...newPreviews]);
-
-    e.target.value = "";
-  };
-
-  const removeImage = (index: number) => {
-    URL.revokeObjectURL(imagePreviews[index]);
-    setImages((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const formData = new FormData();
-    formData.append("name", form.name);
-    formData.append("description", form.description);
-    formData.append("price", form.price);
-    if (form.discountPrice) formData.append("discountPrice", form.discountPrice);
-    if (form.category) formData.append("category", form.category);
-    formData.append("stock", form.stock || "0");
-    formData.append("brand", form.brand);
-    formData.append("isActive", String(form.isActive));
-
-    images.forEach((image) => formData.append("images", image));
-
-    dispatch(createProduct(formData));
-  };
+  const router = useRouter();
+  const { products, loading } = useAppSelector((state: any) => state.products);
 
   useEffect(() => {
-    if (!products || products.length === 0) {
-      dispatch(getProducts());
-    }
-  }, [dispatch, products?.length]);
+    dispatch(getProducts());
+  }, [dispatch]);
 
-  useEffect(() => {
-    if (success) {
-      setOpen(false);
-      resetForm();
-      const t = setTimeout(() => {
-        dispatch(clearSuccess());
-      }, 3000);
-      return () => clearTimeout(t);
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Delete this product from inventory?")) {
+      try {
+        await dispatch(deleteProduct(id)).unwrap();
+        dispatch(getProducts());
+      } catch (err) {
+        console.error(err);
+      }
     }
-  }, [success, dispatch]);
-
-  useEffect(() => {
-    return () => {
-      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [imagePreviews]);
+  };
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Products</h1>
-          <p className="mt-2 text-sm text-neutral-600">
-            Add and manage garment or cosmetic products.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
-        >
-          Add Product
-        </button>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-10">
+        <h1 className="text-3xl font-black text-neutral-900 tracking-tight">Products</h1>
+        <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mt-2">
+          Master Inventory & Catalog Management
+        </p>
       </div>
-      {/* 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-      {success && <p className="mt-4 text-sm text-green-600">{success}</p>} */}
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/55 p-4 backdrop-blur-sm"
-          onClick={closeDialog}
-        >
-          <div
-            className="w-full max-w-5xl overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between border-b border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-6 py-5">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight text-neutral-900">
-                  Add Product
-                </h2>
-                <p className="mt-1 text-sm text-neutral-500">
-                  Fill product details and upload images.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeDialog}
-                className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-100 cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="max-h-[78vh] overflow-y-auto px-6 py-6">
-              <form onSubmit={handleSubmit} className="grid gap-5">
-                <div>
-                  <label className="text-sm font-medium text-neutral-800">Name</label>
-                  <input
-                    name="name"
-                    className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
-                    value={form.name}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-neutral-800">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
-                    rows={4}
-                    value={form.description}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="text-sm font-medium text-neutral-800">
-                      Price
-                    </label>
-                    <input
-                      name="price"
-                      type="number"
-                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
-                      value={form.price}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-neutral-800">
-                      Discount Price
-                    </label>
-                    <input
-                      name="discountPrice"
-                      type="number"
-                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
-                      value={form.discountPrice}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="text-sm font-medium text-neutral-800">
-                      Category
-                    </label>
-                    <select
-                      name="category"
-                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 bg-white"
-                      value={form.category}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="" disabled>Select Category</option>
-                      <option value="Garments">Garments</option>
-                      <option value="Cosmetics">Cosmetics</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-neutral-800">
-                      Brand
-                    </label>
-                    <input
-                      name="brand"
-                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
-                      value={form.brand}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-neutral-800">
-                    Product Images
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleImageChange}
-                    className="mt-1.5 w-full rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 py-2.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:bg-neutral-100"
-                  />
-
-                  {imagePreviews.length > 0 && (
-                    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                      {imagePreviews.map((preview, index) => (
-                        <div key={index} className="relative">
+      {/* Main Table Interface */}
+      <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-neutral-100 bg-neutral-50/50">
+                <th className="px-6 py-4 text-xs font-bold text-neutral-400 uppercase tracking-widest">Preview</th>
+                <th className="px-6 py-4 text-xs font-bold text-neutral-400 uppercase tracking-widest">Title</th>
+                <th className="px-6 py-4 text-xs font-bold text-neutral-400 uppercase tracking-widest">Price</th>
+                <th className="px-6 py-4 text-xs font-bold text-neutral-400 uppercase tracking-widest">Stock</th>
+                <th className="px-6 py-4 text-xs font-bold text-neutral-400 uppercase tracking-widest">Active Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-neutral-400 uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {products.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-20 text-center text-neutral-400">
+                    <div className="flex flex-col items-center">
+                      <Package size={40} strokeWidth={1} className="mb-4 opacity-20" />
+                      <p className="text-sm font-medium">No products listed in your inventory yet.</p>
+                      <button
+                        onClick={() => router.push("/dashboard/products/add")}
+                        className="mt-4 text-xs font-bold text-neutral-900 border-b border-neutral-900 pb-0.5 hover:opacity-70 transition"
+                      >
+                        Create your first product
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                products.map((p: Product) => (
+                  <tr key={p.id || p._id} className="hover:bg-neutral-50/50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="h-12 w-12 rounded-xl bg-neutral-100 border border-neutral-100 overflow-hidden flex-shrink-0 focus:ring-2 focus:ring-neutral-200 transition">
+                        {p.images && (p.images[0] as any) ? (
                           <img
-                            src={preview}
-                            alt={`Preview ${index + 1}`}
-                            className="h-24 w-full rounded-xl border border-neutral-200 object-cover"
+                            src={typeof p.images[0] === 'string' ? p.images[0] : (p.images[0] as any).url}
+                            className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-500"
+                            alt={p.name}
                           />
-                          <button
-                            type="button"
-                            onClick={() => removeImage(index)}
-                            className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-1 text-xs text-white shadow hover:bg-red-600"
-                          >
-                            x
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="text-sm font-medium text-neutral-800">
-                      Stock
-                    </label>
-                    <input
-                      name="stock"
-                      type="number"
-                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
-                      value={form.stock}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-8">
-                    <input
-                      type="checkbox"
-                      name="isActive"
-                      checked={form.isActive}
-                      onChange={handleChange}
-                      className="h-4 w-4 rounded border-neutral-300"
-                    />
-                    <label className="text-sm font-medium text-neutral-800">
-                      Active
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={closeDialog}
-                    className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full flex justify-center items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {loading ? (
-                      <>
-                        <svg className="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Creating...
-                      </>
-                    ) : (
-                      "Create Product"
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold text-neutral-900">All Products</h2>
-
-        {loading ? (
-          <p className="mt-3 text-sm text-neutral-600">Loading products...</p>
-        ) : products.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-600">No products found.</p>
-        ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((product) => {
-              const firstImage = product.images?.[0];
-              const imageUrl =
-                typeof firstImage === "string" ? firstImage : firstImage?.url;
-
-              return (
-                <Link key={product._id} href={`/dashboard/products/${product._id}`}>
-                  <article
-                    className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md"
-                  >
-                    <div className="h-44 w-full bg-neutral-100">
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={product.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-neutral-500">
-                          No image
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-4">
-                      <h3 className="line-clamp-1 text-base font-semibold text-neutral-900">
-                        {product.name}
-                      </h3>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        {product.brand || "No brand"}
-                      </p>
-
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-base font-bold text-neutral-900">
-                          ${Number(product.price).toFixed(2)}
-                        </span>
-                        {product.discountPrice ? (
-                          <span className="text-sm font-medium text-green-600">
-                            ${Number(product.discountPrice).toFixed(2)}
-                          </span>
-                        ) : null}
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-neutral-300">MISSING</div>
+                        )}
                       </div>
-
-                      <p className="mt-2 text-xs text-neutral-500">
-                        Stock: {product.stock ?? 0}
-                      </p>
-                    </div>
-                  </article>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </main>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="max-w-[240px]">
+                        <div className="text-sm font-bold text-neutral-900 truncate">{p.name}</div>
+                        <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-tight mt-0.5">
+                          {typeof p.category === "object" ? p.category?.name : (p.category === "6998b744c465cfbcbf767e4f" ? "Cosmetics" : (p.category === "6998b729c465cfbcbf767e4d" ? "Garments" : p.category || "General"))}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-neutral-900 whitespace-nowrap">
+                        PKR {p.price.toLocaleString()}
+                        {p.discountPrice && <div className="text-[10px] text-red-500 line-through font-medium opacity-60">PKR {p.discountPrice.toLocaleString()}</div>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${p.stock > 10 ? 'bg-green-50 text-green-700' : p.stock > 0 ? 'bg-orange-50 text-orange-700' : 'bg-red-50 text-red-700'}`}>
+                          {p.stock} Units
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md ${p.isActive ? 'bg-blue-50 text-blue-600' : 'bg-neutral-100 text-neutral-400'}`}>
+                        <div className={`w-1 h-1 rounded-full ${p.isActive ? 'bg-blue-600 animate-pulse' : 'bg-neutral-400'}`}></div>
+                        {p.isActive ? "Live" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => router.push(`/dashboard/products/${p._id || p.id}`)}
+                          className="p-2 text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg border border-transparent hover:border-neutral-100 transition shadow-none hover:shadow-sm"
+                          title="View Details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p._id || p.id!)}
+                          className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition shadow-none hover:shadow-sm"
+                          title="Delete Product"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,26 +1,26 @@
 "use client";
-
-import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../hooks/redux";
-import { createProduct, getProducts, clearError, clearSuccess } from "../store/slices/productsSlice";
+import { createProduct, getProducts, clearSuccess } from "../store/slices/productsSlice";
+import { useRouter, useSearchParams } from "next/navigation";
 
-interface Product {
-  _id?: string;
-  id?: string;
+type ProductImage = string | { url?: string };
+type Product = {
+  _id: string;
   name: string;
-  description: string;
+  brand?: string;
   price: number;
   discountPrice?: number;
-  category?: string;
-  images: string[];
-  stock: number;
-  brand: string;
-  isActive: boolean;
-  createdAt?: string;
-}
+  category?: any;
+  stock?: number;
+  images?: ProductImage[];
+};
 
 export default function Products() {
   const dispatch = useAppDispatch();
+
+  // Get products from Redux state
   const { loading, error, success, products } = useAppSelector((state) => state.products as {
     loading: boolean;
     error: string | null;
@@ -28,7 +28,8 @@ export default function Products() {
     products: Product[];
   });
 
-  const [showForm, setShowForm] = useState(false);
+  const [open, setOpen] = useState(false);
+
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -43,22 +44,31 @@ export default function Products() {
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
-  useEffect(() => {
-    console.log("Fetching products...");
-    dispatch(getProducts());
-  }, [dispatch]);
+  const resetForm = () => {
+    imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    setForm({
+      name: "",
+      description: "",
+      price: "",
+      discountPrice: "",
+      category: "",
+      stock: "",
+      brand: "",
+      isActive: true,
+    });
+    setImages([]);
+    setImagePreviews([]);
+  };
 
-  // Debug: Log products state
-  useEffect(() => {
-    console.log("Products state updated:", products);
-    console.log("Loading:", loading);
-    console.log("Error:", error);
-  }, [products, loading, error]);
+  const closeDialog = () => {
+    setOpen(false);
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target as HTMLInputElement;
+
     if (type === "checkbox") {
       setForm((prev) => ({
         ...prev,
@@ -66,6 +76,7 @@ export default function Products() {
       }));
       return;
     }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -74,30 +85,32 @@ export default function Products() {
     if (!files) return;
 
     const fileArray = Array.from(files);
-    setImages(fileArray);
+    const newFiles = fileArray.filter(
+      (newFile) =>
+        !images.some(
+          (existing) =>
+            existing.name === newFile.name && existing.size === newFile.size
+        )
+    );
 
-    const previews = fileArray.map((file) => URL.createObjectURL(file));
-    setImagePreviews(previews);
+    setImages((prev) => [...prev, ...newFiles]);
+
+    const newPreviews = newFiles.map((file) => URL.createObjectURL(file));
+    setImagePreviews((prev) => [...prev, ...newPreviews]);
+
+    e.target.value = "";
   };
 
   const removeImage = (index: number) => {
-    const newImages = images.filter((_, i) => i !== index);
-    const newPreviews = imagePreviews.filter((_, i) => i !== index);
     URL.revokeObjectURL(imagePreviews[index]);
-    setImages(newImages);
-    setImagePreviews(newPreviews);
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Debug: Log form data
-    console.log("Form data:", form);
-    console.log("Images:", images);
-
     const formData = new FormData();
-
-    // Add all form fields
     formData.append("name", form.name);
     formData.append("description", form.description);
     formData.append("price", form.price);
@@ -107,325 +120,337 @@ export default function Products() {
     formData.append("brand", form.brand);
     formData.append("isActive", String(form.isActive));
 
-    // Add images
-    images.forEach((image, index) => {
-      console.log(`Adding image ${index}:`, image.name, image.size);
-      formData.append("images", image);
-    });
-
-    // Debug: Log FormData contents
-    console.log("FormData entries:");
-    for (let [key, value] of formData.entries()) {
-      console.log(key, value);
-    }
+    images.forEach((image) => formData.append("images", image));
 
     dispatch(createProduct(formData));
   };
 
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!products || products.length === 0) {
+      dispatch(getProducts());
+    }
+    if (searchParams.get("add") === "true") {
+      setOpen(true);
+    }
+  }, [dispatch, products?.length, searchParams]);
+
   useEffect(() => {
     if (success) {
-      setForm({
-        name: "",
-        description: "",
-        price: "",
-        discountPrice: "",
-        category: "",
-        stock: "",
-        brand: "",
-        isActive: true,
-      });
-      setImages([]);
-      setImagePreviews([]);
-      setShowForm(false);
-
+      setOpen(false);
+      resetForm();
       const t = setTimeout(() => {
         dispatch(clearSuccess());
       }, 3000);
-
       return () => clearTimeout(t);
     }
   }, [success, dispatch]);
 
   useEffect(() => {
-    if (error) {
-      const t = setTimeout(() => {
-        dispatch(clearError());
-      }, 5000);
-
-      return () => clearTimeout(t);
-    }
-  }, [error, dispatch]);
+    return () => {
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [imagePreviews]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Products</h1>
           <p className="mt-2 text-sm text-neutral-600">
-            Manage your garment and cosmetic products.
+            Add and manage garment or cosmetic products.
           </p>
         </div>
+
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-black text-white px-4 py-2 rounded-lg hover:bg-neutral-800 transition-colors"
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
         >
-          {showForm ? "Cancel" : "Add Product"}
+          Add Product
         </button>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {success && <p className="mb-4 text-sm text-green-600">{success}</p>}
-
-      {/* Debug Section */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-xs">
-          <h3 className="font-semibold mb-2">Debug Info:</h3>
-          <p>Products count: {products.length}</p>
-          <p>Loading: {loading ? 'Yes' : 'No'}</p>
-          <p>Error: {error || 'None'}</p>
-          <p>First product: {products[0] ? JSON.stringify(products[0].name) : 'None'}</p>
-          <details className="mt-2">
-            <summary className="cursor-pointer">Products data (first 3):</summary>
-            <pre className="mt-2 whitespace-pre-wrap">
-              {JSON.stringify(products.slice(0, 3), null, 2)}
-            </pre>
-          </details>
-        </div>
-      )}
-
-      {showForm && (
-        <div className="bg-white rounded-lg border border-neutral-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4">Create New Product</h2>
-          <form onSubmit={handleSubmit} className="grid gap-4">
-            <div>
-              <label className="text-sm font-medium">Name *</label>
-              <input
-                name="name"
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                value={form.name}
-                onChange={handleChange}
-                required
-              />
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/55 p-4 backdrop-blur-sm"
+          onClick={closeDialog}
+        >
+          <div
+            className="w-full max-w-5xl overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-6 py-5">
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight text-neutral-900">
+                  Add Product
+                </h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Fill product details and upload images.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDialog}
+                className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-100 cursor-pointer"
+              >
+                Close
+              </button>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Description</label>
-              <textarea
-                name="description"
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                rows={4}
-                value={form.description}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium">Price *</label>
-                <input
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  value={form.price}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Discount Price</label>
-                <input
-                  name="discountPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  value={form.discountPrice}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium">Category</label>
-                <select
-                  name="category"
-                  className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm bg-white"
-                  value={form.category}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="" disabled>Select Category</option>
-                  <option value="Garments">Garments</option>
-                  <option value="Cosmetics">Cosmetics</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Brand</label>
-                <input
-                  name="brand"
-                  className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  value={form.brand}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Product Images</label>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageChange}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-              <p className="mt-1 text-xs text-neutral-500">
-                Select one or more images from your computer.
-              </p>
-
-              {imagePreviews.length > 0 && (
-                <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {imagePreviews.map((preview, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={preview}
-                        alt={`Preview ${index + 1}`}
-                        className="h-24 w-full rounded-md object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+            <div className="max-h-[78vh] overflow-y-auto px-6 py-6">
+              <form onSubmit={handleSubmit} className="grid gap-5">
+                <div>
+                  <label className="text-sm font-medium text-neutral-800">Name</label>
+                  <input
+                    name="name"
+                    className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+                    value={form.name}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
-              )}
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium">Stock</label>
-                <input
-                  name="stock"
-                  type="number"
-                  min="0"
-                  className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  value={form.stock}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-6">
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={form.isActive}
-                  onChange={handleChange}
-                />
-                <label className="text-sm font-medium">Active</label>
-              </div>
-            </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-800">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+                    rows={4}
+                    value={form.description}
+                    onChange={handleChange}
+                  />
+                </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-2 w-full rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
-            >
-              {loading ? "Saving..." : "Create Product"}
-            </button>
-          </form>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-neutral-800">
+                      Price
+                    </label>
+                    <input
+                      name="price"
+                      type="number"
+                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+                      value={form.price}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-neutral-800">
+                      Discount Price
+                    </label>
+                    <input
+                      name="discountPrice"
+                      type="number"
+                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+                      value={form.discountPrice}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-neutral-800">
+                      Category
+                    </label>
+                    <select
+                      name="category"
+                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 bg-white"
+                      value={form.category}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="" disabled>Select Category</option>
+                      <option value="Garments">Garments</option>
+                      <option value="Cosmetics">Cosmetics</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-neutral-800">
+                      Brand
+                    </label>
+                    <input
+                      name="brand"
+                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+                      value={form.brand}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-neutral-800">
+                    Product Images
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageChange}
+                    className="mt-1.5 w-full rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 py-2.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:bg-neutral-100"
+                  />
+
+                  {imagePreviews.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+                      {imagePreviews.map((preview, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={preview}
+                            alt={`Preview ${index + 1}`}
+                            className="h-24 w-full rounded-xl border border-neutral-200 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index)}
+                            className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-1 text-xs text-white shadow hover:bg-red-600"
+                          >
+                            x
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-neutral-800">
+                      Stock
+                    </label>
+                    <input
+                      name="stock"
+                      type="number"
+                      className="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+                      value={form.stock}
+                      onChange={handleChange}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-8">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      checked={form.isActive}
+                      onChange={handleChange}
+                      className="h-4 w-4 rounded border-neutral-300"
+                    />
+                    <label className="text-sm font-medium text-neutral-800">
+                      Active
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={closeDialog}
+                    className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex justify-center items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Product"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Products List */}
-      <div className="bg-white rounded-lg border border-neutral-200">
-        <div className="p-6 border-b border-neutral-200">
-          <h2 className="text-lg font-semibold">Product List ({products.length})</h2>
-        </div>
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold text-neutral-900">All Products</h2>
 
-        {products.length === 0 ? (
-          <div className="p-8 text-center text-neutral-500">
-            <p>No products found. Add your first product above.</p>
-          </div>
+        {loading ? (
+          <p className="mt-3 text-sm text-neutral-600">Loading products...</p>
+        ) : products.length === 0 ? (
+          <p className="mt-3 text-sm text-neutral-600">No products found.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-neutral-50 border-b border-neutral-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Price</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Brand</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {products.map((product) => (
-                  <tr key={product.id || product._id} className="hover:bg-neutral-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {product.images && product.images.length > 0 && (
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="h-10 w-10 rounded-md object-cover mr-3"
-                          />
-                        )}
-                        <div>
-                          <div className="text-sm font-medium text-neutral-900">{product.name}</div>
-                          <div className="text-sm text-neutral-500 capitalize">
-                            {typeof product.category === "object"
-                              ? (product.category as any).name
-                              : product.category === "6998b729c465cfbcbf767e4d"
-                                ? "Garments"
-                                : product.category || "No category"}
-                          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {products.map((product) => {
+              const firstImage = product.images?.[0];
+              const imageUrl =
+                typeof firstImage === "string" ? firstImage : firstImage?.url;
+
+              return (
+                <Link key={product._id} href={`/dashboard/products/${product._id}`}>
+                  <article
+                    className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md"
+                  >
+                    <div className="h-44 w-full bg-neutral-100">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={product.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+                          No image
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-neutral-900">
-                        ${product.price}
-                        {product.discountPrice && (
-                          <span className="ml-2 text-sm text-red-600 line-through">
-                            ${product.discountPrice}
+                      )}
+                    </div>
+
+                    <div className="p-4">
+                      <h3 className="line-clamp-1 text-base font-semibold text-neutral-900">
+                        {product.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-neutral-500">
+                        {product.brand || "No brand"}
+                      </p>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-base font-bold text-neutral-900">
+                          ${Number(product.price).toFixed(2)}
+                        </span>
+                        {product.discountPrice ? (
+                          <span className="text-sm font-medium text-green-600">
+                            ${Number(product.discountPrice).toFixed(2)}
                           </span>
-                        )}
+                        ) : null}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm ${product.stock > 10 ? 'text-green-600' : product.stock > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
-                        {product.stock} units
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
-                      {product.brand || 'No brand'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${product.isActive
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                        }`}>
-                        {product.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button className="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
-                      <button className="text-red-600 hover:text-red-900">Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      <div className="mt-2 flex items-center justify-between">
+                        <p className="text-xs text-neutral-500">
+                          Stock: {product.stock ?? 0}
+                        </p>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                          {typeof product.category === "object"
+                            ? product.category?.name
+                            : (product.category === "6998b729c465cfbcbf767e4d" || String(product.category).toLowerCase() === "garments")
+                              ? "Garments"
+                              : (product.category === "6998b744c465cfbcbf767e4f" || String(product.category).toLowerCase() === "cosmetics")
+                                ? "Cosmetics"
+                                : product.category || "Uncategorized"}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </Link>
+              );
+            })}
           </div>
         )}
-      </div>
+      </section>
     </main>
   );
 }
