@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { log } from 'console';
 
 interface Product {
   _id?: string;
@@ -51,8 +50,6 @@ export const createProduct = createAsyncThunk(
       });
 
       const data = await response.json();
-      console.log("API Response:", data);
-      console.log("Response status:", response.status);
 
       if (!response.ok) {
         console.error("API Error Details:", {
@@ -88,8 +85,6 @@ export const editProduct = createAsyncThunk(
       });
 
       const data = await response.json();
-      console.log("API Response:", data);
-      console.log("Response status:", response.status);
 
       if (!response.ok) {
         console.error("API Error Details:", {
