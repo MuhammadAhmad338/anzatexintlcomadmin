@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useAppDispatch, useAppSelector } from "../hooks/redux";
 import { createProduct, getProducts, clearSuccess } from "../store/slices/productsSlice";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 type ProductImage = string | { url?: string };
 type Product = {
@@ -17,10 +17,23 @@ type Product = {
   images?: ProductImage[];
 };
 
+// ─── Isolated component that uses useSearchParams ────────────────────────────
+function SearchParamsHandler({ onAddParam }: { onAddParam: () => void }) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("add") === "true") {
+      onAddParam();
+    }
+  }, [searchParams, onAddParam]);
+
+  return null;
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function Products() {
   const dispatch = useAppDispatch();
 
-  // Get products from Redux state
   const { loading, error, success, products } = useAppSelector((state) => state.products as {
     loading: boolean;
     error: string | null;
@@ -125,16 +138,11 @@ export default function Products() {
     dispatch(createProduct(formData));
   };
 
-  const searchParams = useSearchParams();
-
   useEffect(() => {
     if (!products || products.length === 0) {
       dispatch(getProducts());
     }
-    if (searchParams.get("add") === "true") {
-      setOpen(true);
-    }
-  }, [dispatch, products?.length, searchParams]);
+  }, [dispatch, products?.length]);
 
   useEffect(() => {
     if (success) {
@@ -155,6 +163,11 @@ export default function Products() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
+      {/* Suspense boundary isolates useSearchParams from static prerendering */}
+      <Suspense fallback={null}>
+        <SearchParamsHandler onAddParam={() => setOpen(true)} />
+      </Suspense>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Products</h1>
