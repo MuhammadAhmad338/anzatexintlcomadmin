@@ -5,7 +5,7 @@ export const getOrders = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+            const API_URL = "https://datascape.site";
             const res = await fetch(`${API_URL}/api/orders`, {
                 headers: {
                     ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -27,7 +27,7 @@ export const updateOrderStatusThunk = createAsyncThunk(
     async ({ orderId, status }: { orderId: string, status: string }, { rejectWithValue }) => {
         try {
             const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+            const API_URL = "https://datascape.site";
             const res = await fetch(`${API_URL}/api/orders/${orderId}/status`, {
                 method: "PUT",
                 headers: {

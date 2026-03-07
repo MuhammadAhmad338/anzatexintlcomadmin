@@ -33,7 +33,7 @@ export const createProduct = createAsyncThunk(
   'products/createProduct',
   async (productData: FormData, { rejectWithValue }) => {
     try {
-      const API_URL = "http://localhost:3001";
+      const API_URL = "https://datascape.site";
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
       console.log("Sending FormData with images");
@@ -71,7 +71,7 @@ export const editProduct = createAsyncThunk(
   'products/editProduct',
   async ({ productId, productData }: { productId: string, productData: FormData }, { rejectWithValue }) => {
     try {
-      const API_URL = "http://localhost:3001";
+      const API_URL = "https://datascape.site";
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
       // Send FormData as-is (includes both text fields and images)
@@ -106,7 +106,7 @@ export const deleteProduct = createAsyncThunk(
   'products/deleteProduct',
   async (productId: string, { rejectWithValue }) => {
     try {
-      const API_URL = "http://localhost:3001";
+      const API_URL = "https://datascape.site";
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
       // Send FormData as-is (includes both text fields and images)
@@ -140,7 +140,7 @@ export const getProducts = createAsyncThunk(
   'products/getProducts',
   async (_, { rejectWithValue }) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const API_URL = "https://datascape.site";
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
       const response = await fetch(`${API_URL}/api/products`, {
